@@ -1,0 +1,61 @@
+const path = require('path');
+const jwtHelper = require(path.resolve('./core/helpers/jwt.helper'));
+const config = global.config
+
+let tokenList = {};
+
+const accessTokenLife = config.accessTokenLife || "1h";
+
+const accessTokenSecret = config.accessTokenSecret;
+
+const refreshTokenLife = config.refreshTokenLife || "3650d";
+
+const refreshTokenSecret = config.refreshTokenSecret;
+
+const login = async (req, res) => {
+    try {
+        //fake data
+        const userFakeData = {
+            _id: "1234-5678-910JQK-tqd",
+            name: "Trung Quân",
+            email: req.body.email,
+        };
+        //create accessToken
+        const accessToken = await jwtHelper.generateToken(userFakeData, accessTokenSecret, accessTokenLife);
+
+        //create refreshToken
+        const refreshToken = await jwtHelper.generateToken(userFakeData, refreshTokenSecret, refreshTokenLife);
+
+        tokenList[refreshToken] = {accessToken, refreshToken};
+
+        return res.status(200).json({accessToken, refreshToken});
+    } catch (error) {
+        return res.status(500).json(error);
+    }
+}
+
+const refreshToken = async (req, res) => {
+    const refreshTokenFromClient = req.body.refreshToken;
+
+    if (refreshTokenFromClient && (tokenList[refreshTokenFromClient])) {
+        try {
+            const decoded = await jwtHelper.verifyToken(refreshTokenFromClient, refreshTokenSecret);
+            const userFakeData = decoded.data;
+            const accessToken = await jwtHelper.generateToken(userFakeData, accessTokenSecret, accessTokenLife);
+            return res.status(200).json({accessToken});
+        } catch (error) {
+            console.log(error);
+            res.status(403).json({
+                message: 'Invalid refresh token.',
+            });
+        }
+    } else {
+        return res.status(403).send({
+            message: 'No token provided.',
+        });
+    }
+};
+module.exports = {
+    login,
+    refreshToken
+}
